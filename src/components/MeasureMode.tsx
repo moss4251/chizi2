@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Ruler, RULER_PADDING_LEFT } from './Ruler';
 import { MeasurableObject, getRandomObject, ObjectRenderer, PX_PER_CM } from './MeasureObjects';
 import { playClickSound, playPencilSound, playSuccessSound, playErrorSound } from '../utils/sound';
-import confetti from 'canvas-confetti';
+import { triggerNativeConfetti } from '../utils/confetti';
 import { RotateCcw, Pencil, Eraser, ArrowRight, Check, X, Magnet } from 'lucide-react';
 
 interface PencilMark {
@@ -183,11 +183,7 @@ export const MeasureMode: React.FC = () => {
     if (num === currentObject.lengthCm) {
       setFeedbackStatus('correct');
       playSuccessSound();
-      confetti({
-        particleCount: 50,
-        spread: 60,
-        origin: { y: 0.7 },
-      });
+      triggerNativeConfetti();
     } else {
       setFeedbackStatus('wrong');
       playErrorSound();
