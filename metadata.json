@@ -1,0 +1,6 @@
+{
+  "name": "厘米尺互动课堂",
+  "description": "二年级小学数学厘米尺教学课件，支持在10cm尺子上绘制整厘米直线，以及使用尺子与画笔测量1~15cm物体长度并数字答题。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
