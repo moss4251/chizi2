@@ -19,6 +19,8 @@ interface RulerProps {
   selectedEndCm?: number | null;
   onTickClick?: (cm: number) => void;
   className?: string;
+  theme?: 'sky' | 'amber';
+  rulerNumber?: number;
 }
 
 export const Ruler: React.FC<RulerProps> = ({
@@ -32,6 +34,8 @@ export const Ruler: React.FC<RulerProps> = ({
   selectedEndCm = null,
   onTickClick,
   className = '',
+  theme = 'sky',
+  rulerNumber,
 }) => {
   // Generate millimeter and centimeter ticks
   const ticks = [];
@@ -117,6 +121,8 @@ export const Ruler: React.FC<RulerProps> = ({
     );
   }
 
+  const isAmber = theme === 'amber';
+
   return (
     <div
       style={{
@@ -136,20 +142,42 @@ export const Ruler: React.FC<RulerProps> = ({
       } ${className}`}
     >
       {/* Acrylic Translucent Ruler Body with Realistic Bevel */}
-      <div className="absolute inset-0 rounded-md bg-gradient-to-b from-white/95 via-sky-50/85 to-amber-50/90 border border-slate-300/80 backdrop-blur-sm shadow-md overflow-hidden">
+      <div
+        className={`absolute inset-0 rounded-md border backdrop-blur-sm shadow-md overflow-hidden ${
+          isAmber
+            ? 'bg-gradient-to-b from-white/95 via-amber-50/85 to-orange-50/90 border-amber-300/80'
+            : 'bg-gradient-to-b from-white/95 via-sky-50/85 to-amber-50/90 border-slate-300/80'
+        }`}
+      >
         {/* Beveled Top Edge Reflection */}
         <div className="absolute top-0 inset-x-0 h-[2px] bg-white/90" />
         <div className="absolute top-[2px] inset-x-0 h-[1px] bg-slate-200/60" />
 
         {/* Central Frosted Strip for visual depth & grip */}
-        <div className="absolute top-[52px] inset-x-4 h-[24px] rounded-sm bg-gradient-to-r from-sky-100/40 via-blue-50/30 to-amber-100/40 border border-white/60 flex items-center justify-between px-3 text-slate-400">
+        <div
+          className={`absolute top-[52px] inset-x-4 h-[24px] rounded-sm border flex items-center justify-between px-3 ${
+            isAmber
+              ? 'bg-gradient-to-r from-amber-100/50 via-orange-50/40 to-yellow-100/50 border-amber-200/80 text-amber-500'
+              : 'bg-gradient-to-r from-sky-100/40 via-blue-50/30 to-amber-100/40 border-white/60 text-slate-400'
+          }`}
+        >
           <div className="w-8 h-[2px] bg-slate-300/60 rounded" />
-          <div className="w-16 h-[2px] bg-slate-300/60 rounded" />
+          {rulerNumber ? (
+            <span className="text-[11px] font-bold font-mono tracking-wider opacity-70">
+              #{rulerNumber}
+            </span>
+          ) : (
+            <div className="w-16 h-[2px] bg-slate-300/60 rounded" />
+          )}
           <div className="w-8 h-[2px] bg-slate-300/60 rounded" />
         </div>
 
         {/* Standard "cm" Logo/Mark on the ruler */}
-        <div className="absolute top-[8px] left-[7px] text-[13px] font-bold font-mono text-slate-700 tracking-tight select-none">
+        <div
+          className={`absolute top-[8px] left-[7px] text-[13px] font-bold font-mono tracking-tight select-none ${
+            isAmber ? 'text-amber-800' : 'text-slate-700'
+          }`}
+        >
           cm
         </div>
       </div>

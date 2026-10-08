@@ -3,7 +3,7 @@ import { Ruler, RULER_PADDING_LEFT } from './Ruler';
 import { MeasurableObject, getRandomObject, ObjectRenderer, PX_PER_CM } from './MeasureObjects';
 import { playClickSound, playPencilSound, playSuccessSound, playErrorSound } from '../utils/sound';
 import { triggerNativeConfetti } from '../utils/confetti';
-import { RotateCcw, Pencil, Eraser, ArrowRight, Check, X, Magnet } from 'lucide-react';
+import { RotateCcw, Pencil, Eraser, ArrowRight, Check, X, Magnet, Layers, Bookmark } from 'lucide-react';
 
 interface PencilMark {
   id: string;
@@ -15,16 +15,27 @@ export const MeasureMode: React.FC = () => {
   // Current object to measure (1cm to 15cm)
   const [currentObject, setCurrentObject] = useState<MeasurableObject>(() => getRandomObject());
 
+  // Measurement strategy method: 'mark' (标记法) or 'overlap' (重叠法)
+  const [measureMethod, setMeasureMethod] = useState<'mark' | 'overlap'>('mark');
+
   // Fixed baseline for object's left edge inside the canvas
   const OBJECT_START_X = 60;
   const OBJECT_Y = 40;
 
-  // Ruler position
+  // Ruler 1 position (primary ruler)
   const [rulerPos, setRulerPos] = useState({ x: OBJECT_START_X - RULER_PADDING_LEFT, y: 140 });
-  const [isDraggingRuler, setIsDraggingRuler] = useState(false);
-  const dragStartRef = useRef<{ mouseX: number; mouseY: number; rulerX: number; rulerY: number } | null>(null);
+  const [isDraggingRuler1, setIsDraggingRuler1] = useState(false);
+  const dragStartRef1 = useRef<{ mouseX: number; mouseY: number; rulerX: number; rulerY: number } | null>(null);
 
-  // Pencil tool state
+  // Ruler 2 position (for 重叠法)
+  const [ruler2Pos, setRuler2Pos] = useState({
+    x: OBJECT_START_X + 10 * PX_PER_CM - RULER_PADDING_LEFT,
+    y: 155,
+  });
+  const [isDraggingRuler2, setIsDraggingRuler2] = useState(false);
+  const dragStartRef2 = useRef<{ mouseX: number; mouseY: number; rulerX: number; rulerY: number } | null>(null);
+
+  // Pencil tool state (for 标记法)
   const [isPencilActive, setIsPencilActive] = useState(false);
   const [pencilMarks, setPencilMarks] = useState<PencilMark[]>([]);
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
@@ -42,19 +53,35 @@ export const MeasureMode: React.FC = () => {
     setInputAnswer('');
     setFeedbackStatus('idle');
     setPencilMarks([]);
-    // Reset ruler position to align with start
+    // Reset rulers
     setRulerPos({ x: OBJECT_START_X - RULER_PADDING_LEFT, y: 140 });
+    setRuler2Pos({
+      x: OBJECT_START_X + 10 * PX_PER_CM - RULER_PADDING_LEFT,
+      y: 155,
+    });
   }, []);
 
-  // Handle ruler dragging
-  const handleRulerDragStart = (e: React.PointerEvent) => {
-    if (isPencilActive) return; // If pencil is active, clicks make marks instead of dragging
-    setIsDraggingRuler(true);
-    dragStartRef.current = {
+  // Handle Ruler 1 dragging
+  const handleRuler1DragStart = (e: React.PointerEvent) => {
+    if (measureMethod === 'mark' && isPencilActive) return;
+    setIsDraggingRuler1(true);
+    dragStartRef1.current = {
       mouseX: e.clientX,
       mouseY: e.clientY,
       rulerX: rulerPos.x,
       rulerY: rulerPos.y,
+    };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  // Handle Ruler 2 dragging (重叠法)
+  const handleRuler2DragStart = (e: React.PointerEvent) => {
+    setIsDraggingRuler2(true);
+    dragStartRef2.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      rulerX: ruler2Pos.x,
+      rulerY: ruler2Pos.y,
     };
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
@@ -68,20 +95,38 @@ export const MeasureMode: React.FC = () => {
       });
     }
 
-    if (isDraggingRuler && dragStartRef.current) {
-      const dx = e.clientX - dragStartRef.current.mouseX;
-      const dy = e.clientY - dragStartRef.current.mouseY;
+    if (isDraggingRuler1 && dragStartRef1.current) {
+      const dx = e.clientX - dragStartRef1.current.mouseX;
+      const dy = e.clientY - dragStartRef1.current.mouseY;
       setRulerPos({
-        x: Math.max(10, Math.min(850, dragStartRef.current.rulerX + dx)),
-        y: Math.max(90, Math.min(220, dragStartRef.current.rulerY + dy)),
+        x: Math.max(10, Math.min(850, dragStartRef1.current.rulerX + dx)),
+        y: Math.max(90, Math.min(220, dragStartRef1.current.rulerY + dy)),
+      });
+    }
+
+    if (isDraggingRuler2 && dragStartRef2.current) {
+      const dx = e.clientX - dragStartRef2.current.mouseX;
+      const dy = e.clientY - dragStartRef2.current.mouseY;
+      setRuler2Pos({
+        x: Math.max(10, Math.min(850, dragStartRef2.current.rulerX + dx)),
+        y: Math.max(90, Math.min(220, dragStartRef2.current.rulerY + dy)),
       });
     }
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    if (isDraggingRuler) {
-      setIsDraggingRuler(false);
-      dragStartRef.current = null;
+    if (isDraggingRuler1) {
+      setIsDraggingRuler1(false);
+      dragStartRef1.current = null;
+      try {
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+    }
+    if (isDraggingRuler2) {
+      setIsDraggingRuler2(false);
+      dragStartRef2.current = null;
       try {
         (e.target as HTMLElement).releasePointerCapture(e.pointerId);
       } catch {
@@ -90,13 +135,23 @@ export const MeasureMode: React.FC = () => {
     }
   };
 
-  // Align ruler's 0-mark to the object's left edge
+  // Align Ruler 1's 0-mark to the object's left edge
   const handleAlignToStart = () => {
     playClickSound();
     setRulerPos({ x: OBJECT_START_X - RULER_PADDING_LEFT, y: 140 });
   };
 
-  // Align ruler's 0-mark to the latest pencil mark
+  // One-click splice Ruler 2's 0-mark to Ruler 1's 10-mark (重叠法 / 接尺法)
+  const handleSpliceRulers = () => {
+    playClickSound();
+    const ruler1TenX = rulerPos.x + RULER_PADDING_LEFT + 10 * PX_PER_CM;
+    setRuler2Pos({
+      x: ruler1TenX - RULER_PADDING_LEFT,
+      y: rulerPos.y,
+    });
+  };
+
+  // Align ruler's 0-mark to pencil mark (标记法)
   const handleAlignToMark = () => {
     if (pencilMarks.length === 0) return;
     playClickSound();
@@ -114,10 +169,14 @@ export const MeasureMode: React.FC = () => {
     ]);
   };
 
-  // Reset ruler
+  // Reset ruler positions
   const handleResetRuler = () => {
     playClickSound();
     setRulerPos({ x: OBJECT_START_X - RULER_PADDING_LEFT, y: 140 });
+    setRuler2Pos({
+      x: OBJECT_START_X + 10 * PX_PER_CM - RULER_PADDING_LEFT,
+      y: 155,
+    });
   };
 
   // Clear pencil marks
@@ -126,9 +185,9 @@ export const MeasureMode: React.FC = () => {
     setPencilMarks([]);
   };
 
-  // Click on canvas with Pencil: Place mark EXACTLY at the mouse click location
+  // Click on canvas with Pencil (标记法)
   const handleCanvasPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isPencilActive || !canvasRef.current) return;
+    if (measureMethod !== 'mark' || !isPencilActive || !canvasRef.current) return;
 
     const rect = canvasRef.current.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
@@ -215,79 +274,131 @@ export const MeasureMode: React.FC = () => {
 
   const objectRightX = OBJECT_START_X + currentObject.lengthCm * PX_PER_CM;
 
+  // Calculate connection/overlap between Ruler 1 and Ruler 2 for 重叠法
+  const ruler1ZeroX = rulerPos.x + RULER_PADDING_LEFT;
+  const ruler1TenX = ruler1ZeroX + 10 * PX_PER_CM;
+  const ruler2ZeroX = ruler2Pos.x + RULER_PADDING_LEFT;
+  const isSpliced = Math.abs(ruler2ZeroX - ruler1TenX) < 6;
+
   return (
     <div className="w-full flex flex-col gap-3 select-none">
-      {/* Top Toolbar: Separated cleanly from the measurement canvas */}
-      <div className="flex flex-wrap items-center justify-between gap-2 bg-white rounded-xl px-4 py-2.5 border border-slate-200 shadow-xs">
-        {/* Alignment and Pencil tools */}
+      {/* Top Toolbar: Method Switch and Operational Buttons */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 bg-white rounded-xl px-4 py-2.5 border border-slate-200 shadow-xs">
+        {/* Method Toggle: 标记法 vs 重叠法 */}
+        <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
+          <button
+            onClick={() => {
+              playClickSound();
+              setMeasureMethod('mark');
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md transition-all active:scale-95 ${
+              measureMethod === 'mark'
+                ? 'bg-white text-blue-600 shadow-xs ring-1 ring-slate-200'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Bookmark className="w-3.5 h-3.5" />
+            标记法
+          </button>
+          <button
+            onClick={() => {
+              playClickSound();
+              setMeasureMethod('overlap');
+              setIsPencilActive(false);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md transition-all active:scale-95 ${
+              measureMethod === 'overlap'
+                ? 'bg-white text-blue-600 shadow-xs ring-1 ring-slate-200'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            重叠法
+          </button>
+        </div>
+
+        {/* Action Tools based on active method */}
         <div className="flex items-center gap-2">
           <button
             onClick={handleAlignToStart}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors active:scale-95"
+            className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors active:scale-95"
           >
             <Magnet className="w-3.5 h-3.5 text-blue-600" />
             对齐
           </button>
 
-          {/* Pencil button (画笔) */}
-          <button
-            onClick={() => {
-              playClickSound();
-              setIsPencilActive((prev) => !prev);
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all active:scale-95 ${
-              isPencilActive
-                ? 'bg-amber-500 text-white shadow-sm ring-2 ring-amber-300 scale-105'
-                : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
-            }`}
-          >
-            <Pencil className="w-3.5 h-3.5" />
-            画笔
-          </button>
+          {/* Tools for 标记法 */}
+          {measureMethod === 'mark' && (
+            <>
+              <button
+                onClick={() => {
+                  playClickSound();
+                  setIsPencilActive((prev) => !prev);
+                }}
+                className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition-all active:scale-95 ${
+                  isPencilActive
+                    ? 'bg-amber-500 text-white shadow-sm ring-2 ring-amber-300 scale-105'
+                    : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                }`}
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                画笔
+              </button>
 
-          {/* Quick 10cm mark button for objects > 10cm */}
-          {currentObject.lengthCm > 10 && (
-            <button
-              onClick={handleAdd10cmMark}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-amber-700 bg-amber-100/80 hover:bg-amber-200 rounded-lg transition-colors active:scale-95"
-            >
-              ✏️ 10cm
-            </button>
+              {currentObject.lengthCm > 10 && (
+                <button
+                  onClick={handleAdd10cmMark}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-amber-700 bg-amber-100/80 hover:bg-amber-200 rounded-lg transition-colors active:scale-95"
+                >
+                  ✏️ 10cm
+                </button>
+              )}
+
+              {pencilMarks.length > 0 && (
+                <button
+                  onClick={handleAlignToMark}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors active:scale-95"
+                >
+                  <Magnet className="w-3.5 h-3.5 text-indigo-600" />
+                  对齐记号
+                </button>
+              )}
+
+              {pencilMarks.length > 0 && (
+                <button
+                  onClick={handleClearMarks}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 rounded-lg transition-colors active:scale-95"
+                >
+                  <Eraser className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </>
           )}
 
-          {/* Align to mark if marked */}
-          {pencilMarks.length > 0 && (
+          {/* Tools for 重叠法 */}
+          {measureMethod === 'overlap' && (
             <button
-              onClick={handleAlignToMark}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors active:scale-95"
+              onClick={handleSpliceRulers}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-amber-800 bg-amber-100/90 hover:bg-amber-200 rounded-lg transition-colors active:scale-95 shadow-xs"
             >
-              <Magnet className="w-3.5 h-3.5 text-indigo-600" />
-              对齐记号
-            </button>
-          )}
-
-          {pencilMarks.length > 0 && (
-            <button
-              onClick={handleClearMarks}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 rounded-lg transition-colors active:scale-95"
-            >
-              <Eraser className="w-3.5 h-3.5" />
+              <Magnet className="w-3.5 h-3.5 text-amber-600" />
+              对接
             </button>
           )}
         </div>
 
-        {/* Reset ruler & Next object */}
+        {/* Reset & Next Object */}
         <div className="flex items-center gap-2">
           <button
             onClick={handleResetRuler}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors active:scale-95"
+            className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors active:scale-95"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             复位
           </button>
           <button
             onClick={handleNextObject}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors active:scale-95"
+            className="flex items-center gap-1 px-3.5 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors active:scale-95"
           >
             换一个
             <ArrowRight className="w-3.5 h-3.5" />
@@ -303,7 +414,7 @@ export const MeasureMode: React.FC = () => {
         onPointerUp={handlePointerUp}
         onPointerLeave={() => setCursorPos(null)}
         className={`relative w-full h-[320px] rounded-2xl bg-gradient-to-b from-sky-50/60 to-indigo-50/40 border border-slate-200/90 shadow-inner overflow-hidden touch-none ${
-          isPencilActive ? 'cursor-none' : ''
+          measureMethod === 'mark' && isPencilActive ? 'cursor-none' : ''
         }`}
       >
         {/* Soft grid background */}
@@ -339,34 +450,61 @@ export const MeasureMode: React.FC = () => {
           <ObjectRenderer object={currentObject} />
         </div>
 
-        {/* Pencil Marks made by student - strictly centered at mark.x */}
-        {pencilMarks.map((mark) => (
-          <div
-            key={mark.id}
-            style={{ left: `${mark.x}px` }}
-            className="absolute top-2 bottom-2 z-20 pointer-events-none flex flex-col items-center -translate-x-1/2 w-0 overflow-visible"
-          >
-            {/* Pencil Mark visual badge */}
-            <div className="bg-red-500 text-white text-[11px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm flex items-center gap-0.5 whitespace-nowrap mb-0.5">
-              ✏️ {mark.label || ''}
+        {/* Pencil Marks for 标记法 - strictly centered at mark.x */}
+        {measureMethod === 'mark' &&
+          pencilMarks.map((mark) => (
+            <div
+              key={mark.id}
+              style={{ left: `${mark.x}px` }}
+              className="absolute top-2 bottom-2 z-20 pointer-events-none flex flex-col items-center -translate-x-1/2 w-0 overflow-visible"
+            >
+              <div className="bg-red-500 text-white text-[11px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm flex items-center gap-0.5 whitespace-nowrap mb-0.5">
+                ✏️ {mark.label || ''}
+              </div>
+              <div className="w-[2px] h-full bg-red-500 shadow-sm" />
             </div>
-            {/* The vertical mark line centered EXACTLY on mark.x */}
-            <div className="w-[2px] h-full bg-red-500 shadow-sm" />
-          </div>
-        ))}
+          ))}
 
-        {/* 10cm Standard Ruler */}
+        {/* Splicing Connection Joint Indicator for 重叠法 */}
+        {measureMethod === 'overlap' && isSpliced && (
+          <div
+            style={{ left: `${ruler1TenX}px` }}
+            className="absolute top-[110px] z-30 pointer-events-none flex flex-col items-center -translate-x-1/2"
+          >
+            <div className="bg-amber-600 text-white text-[11px] font-mono font-bold px-2 py-0.5 rounded-full shadow-sm animate-pulse whitespace-nowrap">
+              10cm ➔ 0cm
+            </div>
+            <div className="w-[2px] h-12 bg-amber-500/80" />
+          </div>
+        )}
+
+        {/* Ruler 1 (Primary 10cm ruler, sky theme) */}
         <Ruler
           x={rulerPos.x}
           y={rulerPos.y}
-          onDragStart={handleRulerDragStart}
-          isDragging={isDraggingRuler}
-          disableDrag={isPencilActive}
+          onDragStart={handleRuler1DragStart}
+          isDragging={isDraggingRuler1}
+          disableDrag={measureMethod === 'mark' && isPencilActive}
+          theme="sky"
+          rulerNumber={measureMethod === 'overlap' ? 1 : undefined}
           className="z-15"
         />
 
-        {/* Custom Visual Pencil tracking mouse position with tip at exact cursor (x, y) */}
-        {isPencilActive && cursorPos && (
+        {/* Ruler 2 (Secondary 10cm ruler for 重叠法, amber theme) */}
+        {measureMethod === 'overlap' && (
+          <Ruler
+            x={ruler2Pos.x}
+            y={ruler2Pos.y}
+            onDragStart={handleRuler2DragStart}
+            isDragging={isDraggingRuler2}
+            theme="amber"
+            rulerNumber={2}
+            className="z-25"
+          />
+        )}
+
+        {/* Custom Visual Pencil tracking mouse position (标记法) */}
+        {measureMethod === 'mark' && isPencilActive && cursorPos && (
           <div
             style={{
               left: `${cursorPos.x}px`,
